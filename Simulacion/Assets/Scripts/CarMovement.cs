@@ -1,7 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class CarMovement : MonoBehaviour
 {
     public Transform llantaDelanteraIzquierda;
@@ -9,31 +8,47 @@ public class CarMovement : MonoBehaviour
     public Transform llantaTraseraIzquierda;
     public Transform llantaTraseraDerecha;
 
-    public float velocidad = 10f;
-    public float rotacionLlantas = 100f;
+    public float velocidad = 1000f; // Incrementa la fuerza aplicada
+    public float velocidadRotacion = 10f;
+    public float rotacionLlantas = 50f;
+    public float limiteVelocidad = 20f;
 
-    void Update()
+    private Rigidbody rb;
+
+    void Start()
     {
-        // Movimiento del coche hacia adelante/atrás
-        float movimiento = Input.GetAxis("Vertical") * velocidad * Time.deltaTime;
-        transform.Translate(Vector3.forward * movimiento);
-
-        // Rotación de las llantas
-        if (movimiento != 0)
-        {
-            RotarLlantas(movimiento);
-        }
-
-        // Rotación del coche (izquierda/derecha)
-        float rotacion = Input.GetAxis("Horizontal") * velocidad * Time.deltaTime;
-        transform.Rotate(Vector3.up, rotacion);
+        rb = GetComponent<Rigidbody>();
+        rb.centerOfMass = new Vector3(0, -0.5f, 0); // Centro de masa ajustado
     }
 
-    void RotarLlantas(float movimiento)
+    void FixedUpdate()
     {
-        float rotacion = movimiento * rotacionLlantas;
+        // Movimiento hacia adelante o atrás
+        float movimientoInput = Input.GetAxis("Vertical");
+        Vector3 fuerzaMovimiento = transform.forward * movimientoInput * velocidad;
+        rb.AddForce(fuerzaMovimiento, ForceMode.Force);
 
-        // Rotar las llantas alrededor de su eje X
+        // Limitar la velocidad máxima
+        if (rb.velocity.magnitude > limiteVelocidad)
+        {
+            rb.velocity = Vector3.ClampMagnitude(rb.velocity, limiteVelocidad);
+        }
+
+        // Rotación del coche
+        float rotacionInput = Input.GetAxis("Horizontal");
+        float giro = rotacionInput * velocidadRotacion * Time.fixedDeltaTime;
+        transform.Rotate(0, giro, 0);
+
+        // Rotación de las llantas
+        RotarLlantas();
+    }
+
+    void RotarLlantas()
+    {
+        // Calcula la rotación en función de la velocidad real del coche
+        float rotacion = rb.velocity.magnitude * rotacionLlantas * Time.fixedDeltaTime;
+
+        // Rotar las llantas alrededor de su eje local X
         llantaDelanteraIzquierda.Rotate(Vector3.right, rotacion);
         llantaDelanteraDerecha.Rotate(Vector3.right, rotacion);
         llantaTraseraIzquierda.Rotate(Vector3.right, rotacion);
