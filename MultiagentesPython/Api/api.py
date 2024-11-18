@@ -1,23 +1,19 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
+from threading import Thread
 
 app = Flask(__name__)
+current_model_data = {}
 
-# Ruta para recibir actualizaciones de Unity.
-@app.route('/update', methods=['POST'])
-def update_simulation():
-    data = request.json
-    # Procesar datos enviados por Unity.
-    return jsonify({"status": "updated"})
+@app.route('/positions', methods=['GET'])
+def send_positions():
+    """Envía las posiciones actuales del modelo a Unity."""
+    return jsonify(current_model_data)
 
-# Ruta para enviar estado de agentes a Unity.
-@app.route('/state', methods=['GET'])
-def send_state():
-    # Simulación de datos.
-    agents_state = [
-        {"id": 1, "type": "car", "position": [1, 2]},
-        {"id": 2, "type": "pedestrian", "position": [3, 4]},
-    ]
-    return jsonify(agents_state)
+def run_server():
+    """Ejecuta el servidor Flask."""
+    app.run(host='0.0.0.0', port=5000)
 
-if __name__ == '__main__':
-    app.run(port=5000)
+def update_model_data(data):
+    """Actualiza los datos actuales del modelo para la API."""
+    global current_model_data
+    current_model_data = data

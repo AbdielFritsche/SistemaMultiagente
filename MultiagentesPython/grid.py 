@@ -4,7 +4,7 @@ class Cell:
     def __init__(self, cell_type, position):
         self.cell_type = cell_type  # 'road', 'sidewalk', 'obstacle', 'intersection'
         self.position = position
-        self.occupied_by = None   # Agente que ocupa la celda (None si está libre)
+        self.occupied_by = None
 
     def is_occupied(self):
         return self.occupied_by is not None
@@ -29,23 +29,23 @@ class Grid(ap.Space):
             self.cells[x][y].cell_type = "sidewalk"
 
     def set_obstacles(self, positions):
-        """Coloca obstáculos en el grid."""
+        """Define las celdas que serán obstáculos."""
         for pos in positions:
             x, y = pos
             self.cells[x][y].cell_type = "obstacle"
 
     def set_intersections(self, positions):
-        """Define las celdas que son intersecciones."""
+        """Define las celdas que serán intersecciones."""
         for pos in positions:
             x, y = pos
             self.cells[x][y].cell_type = "intersection"
 
     def is_walkable(self, position):
-        """Chequea si una posición es transitable para un peatón."""
+        """Chequea si una celda es transitable para peatones."""
         x, y = position
         return self.cells[x][y].cell_type in ["sidewalk", "intersection"]
 
     def is_driveable(self, position):
-        """Chequea si una posición es transitable para un vehículo."""
+        """Chequea si una celda es transitable para vehículos."""
         x, y = position
         return self.cells[x][y].cell_type in ["road", "intersection"]
