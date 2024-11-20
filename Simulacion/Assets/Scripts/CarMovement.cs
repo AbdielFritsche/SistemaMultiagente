@@ -38,20 +38,5 @@ public class CarMovement : MonoBehaviour
         float rotacionInput = Input.GetAxis("Horizontal");
         float giro = rotacionInput * velocidadRotacion * Time.fixedDeltaTime;
         transform.Rotate(0, giro, 0);
-
-        // Rotación de las llantas
-        RotarLlantas();
-    }
-
-    void RotarLlantas()
-    {
-        // Calcula la rotación en función de la velocidad real del coche
-        float rotacion = rb.velocity.magnitude * rotacionLlantas * Time.fixedDeltaTime;
-
-        // Rotar las llantas alrededor de su eje local X
-        llantaDelanteraIzquierda.Rotate(Vector3.right, rotacion);
-        llantaDelanteraDerecha.Rotate(Vector3.right, rotacion);
-        llantaTraseraIzquierda.Rotate(Vector3.right, rotacion);
-        llantaTraseraDerecha.Rotate(Vector3.right, rotacion);
     }
 }
