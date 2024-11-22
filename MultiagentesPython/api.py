@@ -23,3 +23,6 @@ def get_simulacion_data():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+##Emir te amo mucho gracias por todo

@@ -17,3 +17,4 @@ def update_model_data(data):
     """Actualiza los datos actuales del modelo para la API."""
     global current_model_data
     current_model_data = data
+

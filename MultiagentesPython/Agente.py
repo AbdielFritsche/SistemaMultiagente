@@ -5,10 +5,12 @@ from matplotlib.animation import FuncAnimation
 import random
 import heapq
 
+# Parámetros de Q-Learning
 alpha = 0.1
 gamma = 0.9
 epsilon = 0.2
 
+# Estados y acciones
 states_car = [
     "green_light_clear",
     "green_light_car_ahead",
@@ -22,6 +24,7 @@ actions_car = ["continue", "slow_down", "stop", "turn_left", "turn_right"]
 states_person = ["red_light_car_far", "red_light_car_near", "green_light"]
 actions_person = ["wait", "cross", "walk_left", "walk_right"]
 
+# Inicialización de Q-tables
 q_table_car = np.random.uniform(low=-0.1, high=0.1, size=(len(states_car), len(actions_car)))
 q_table_person = np.random.uniform(low=-0.1, high=0.1, size=(len(states_person), len(actions_person)))
 
@@ -104,25 +107,37 @@ class CarAgent(ap.Agent):
             'down': 'DOWN'
         }
         traffic_direction = direction_to_traffic[self.direction]
-        if hasattr(traffic_light.semaforo_coordinates[traffic_direction], 'get') and \
-           traffic_light.semaforo_coordinates[traffic_direction].get('id') == self.traffic_light_id:
-            traffic_state = traffic_light.get_state_for_direction(traffic_direction)
-        else:
-            traffic_state = traffic_light.get_state_for_direction(traffic_direction)
+        traffic_state = traffic_light.get_state_for_direction(traffic_direction)
         
         if traffic_state == "red":
             return "red_light"
         elif traffic_state == "yellow":
             dist_to_intersection = self.distance_to_intersection()
             return "yellow_light_near" if dist_to_intersection < 3 else "yellow_light_far"
-        else:  # green
+        else:  # Si es verde, verificar otras condiciones
             for car in cars:
                 if car is not self and self.is_car_ahead(car):
                     if self.distance_to_car(car) < 2:
                         return "green_light_car_ahead"
                     elif self.is_car_crossing(car):
                         return "green_light_car_crossing"
+            
+            # Verificar si hay peatones cruzando
+            for pedestrian in pedestrians:
+                if pedestrian.crossing and self.is_pedestrian_in_path(pedestrian):
+                    return "green_light_car_ahead"
+            
             return "green_light_clear"
+
+    def is_pedestrian_in_path(self, pedestrian):
+        if self.direction in ['right', 'left']:
+            return (abs(pedestrian.y - self.y) < 1 and 
+                    ((self.direction == 'right' and pedestrian.x > self.x) or
+                     (self.direction == 'left' and pedestrian.x < self.x)))
+        else:  # up or down
+            return (abs(pedestrian.x - self.x) < 1 and 
+                    ((self.direction == 'up' and pedestrian.y > self.y) or
+                     (self.direction == 'down' and pedestrian.y < self.y)))
 
     def distance_to_intersection(self):
         return abs(5 - (self.x if self.direction in ['right', 'left'] else self.y))
@@ -261,6 +276,7 @@ class CarAgent(ap.Agent):
         elif state == "green_light_car_ahead":
             reward = 3 if action == "slow_down" else -5
         return reward
+
 class PedestrianAgent(ap.Agent):
     def setup(self, start_pos, target_pos):
         self.x, self.y = start_pos
@@ -270,9 +286,23 @@ class PedestrianAgent(ap.Agent):
         self.color = 'blue'
         self.safe_distance = 2.0
         self.speed = 0.2
+        self.my_traffic_light = None
+
+    def get_my_traffic_light(self, traffic_light):
+        if 2 <= self.x <= 3:  # Peatón en el cruce oeste
+            return traffic_light.get_state_for_direction("LEFT")
+        elif 7 <= self.x <= 8:  # Peatón en el cruce este
+            return traffic_light.get_state_for_direction("RIGHT")
+        elif 2 <= self.y <= 3:  # Peatón en el cruce sur
+            return traffic_light.get_state_for_direction("DOWN")
+        elif 7 <= self.y <= 8:  # Peatón en el cruce norte
+            return traffic_light.get_state_for_direction("UP")
+        return None
 
     def is_crossing_safe(self, traffic_light, cars):
-        if traffic_light.state != "red":
+        self.my_traffic_light = self.get_my_traffic_light(traffic_light)
+        
+        if self.my_traffic_light != "red":
             return False
         
         for car in cars:
@@ -425,13 +455,15 @@ class PedestrianAgent(ap.Agent):
         return -5
 
     def get_state(self, traffic_light, cars):
+        self.my_traffic_light = self.get_my_traffic_light(traffic_light)
+        
         car_proximity = "far"
         for car in cars:
             if self.distance_to_car(car) < 2:
                 car_proximity = "near"
                 break
         
-        if traffic_light.state == "red":
+        if self.my_traffic_light == "red":
             return "red_light_car_near" if car_proximity == "near" else "red_light_car_far"
         else:
             return "green_light"
