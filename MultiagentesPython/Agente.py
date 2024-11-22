@@ -42,27 +42,48 @@ class TrafficLight(ap.Agent):
         self.timer = 0
         self.green_duration = 20
         self.yellow_duration = 5
-        self.directions = ["UP", "RIGHT", "DOWN", "LEFT"]
+        self.all_red_duration = 60
+        self.directions = ["UP", "RIGHT", "DOWN", "LEFT",  "ALL_RED"]
         self.current_direction_index = 0
-        self.states = {direction: "red" for direction in self.directions}
+        self.states = {direction: "red" for direction in self.directions[:-1]}
         self.states[self.directions[0]] = "green"
         self.state = "green"
+        self.is_all_red = False
 
     def update_state(self):
         self.timer += 1
         total_cycle_time = self.green_duration + self.yellow_duration
 
-        if self.timer > total_cycle_time:
-            self.timer = 1
-            self.current_direction_index = (self.current_direction_index + 1) % len(self.directions)
-            self.states = {direction: "red" for direction in self.directions}
-            current_direction = self.directions[self.current_direction_index]
-            self.states[current_direction] = "green"
-            self.state = "green"
-        elif self.timer > self.green_duration:
-            current_direction = self.directions[self.current_direction_index]
-            self.states[current_direction] = "yellow"
-            self.state = "yellow"
+        if self.current_direction_index == len(self.directions) - 1:  
+            if self.timer > self.all_red_duration:
+                self.timer = 1
+                self.current_direction_index = 0
+                self.states = {direction: "red" for direction in self.directions[:-1]}
+                self.states[self.directions[0]] = "green"
+                self.state = "green"
+                self.is_all_red = False
+            else:
+                self.states = {direction: "red" for direction in self.directions[:-1]}
+                self.state = "red"
+                self.is_all_red = True
+        else:
+            if self.timer > total_cycle_time:
+                self.timer = 1
+                self.current_direction_index = (self.current_direction_index + 1) % len(self.directions)
+                if self.current_direction_index == len(self.directions) - 1:  
+                    self.states = {direction: "red" for direction in self.directions[:-1]}
+                    self.state = "red"
+                    self.is_all_red = True
+                else:
+                    self.states = {direction: "red" for direction in self.directions[:-1]}
+                    current_direction = self.directions[self.current_direction_index]
+                    self.states[current_direction] = "green"
+                    self.state = "green"
+                    self.is_all_red = False
+            elif self.timer > self.green_duration:
+                current_direction = self.directions[self.current_direction_index]
+                self.states[current_direction] = "yellow"
+                self.state = "yellow"
 
     def get_state_for_direction(self, direction):
         return self.states[direction]
@@ -300,19 +321,20 @@ class PedestrianAgent(ap.Agent):
         return None
 
     def is_crossing_safe(self, traffic_light, cars):
-        self.my_traffic_light = self.get_my_traffic_light(traffic_light)
+        is_at_horizontal_crossing = (2 <= self.y <= 3 or 7 <= self.y <= 8) and (2 <= self.x <= 8)
+        is_at_vertical_crossing = (2 <= self.x <= 3 or 7 <= self.x <= 8) and (2 <= self.y <= 8)
         
-        if self.my_traffic_light != "red":
+        if not (is_at_horizontal_crossing or is_at_vertical_crossing):
+            return True
+            
+        if not traffic_light.is_all_red:
             return False
         
         for car in cars:
             if self.distance_to_car(car) < self.safe_distance:
                 return False
-                
-        is_at_horizontal_crossing = (2 <= self.y <= 3 or 7 <= self.y <= 8) and (2 <= self.x <= 8)
-        is_at_vertical_crossing = (2 <= self.x <= 3 or 7 <= self.x <= 8) and (2 <= self.y <= 8)
         
-        return is_at_horizontal_crossing or is_at_vertical_crossing
+        return True
 
     def distance_to_car(self, car):
         return np.sqrt((self.x - car.x)**2 + (self.y - car.y)**2)
@@ -411,6 +433,13 @@ class PedestrianAgent(ap.Agent):
             next_pos = self.path_points[0]
             dx = next_pos[0] - self.x
             dy = next_pos[1] - self.y
+
+            # aca se checa si es un paso de zebra para avanzar si no espera
+            next_is_crossing = (
+                (2 <= next_pos[1] <= 3 or 7 <= next_pos[1] <= 8) and (2 <= next_pos[0] <= 8) or
+                (2 <= next_pos[0] <= 3 or 7 <= next_pos[0] <= 8) and (2 <= next_pos[1] <= 8)
+            )
+            self.crossing = next_is_crossing
             
             if abs(dx) > self.speed:
                 self.x += self.speed if dx > 0 else -self.speed
@@ -444,12 +473,12 @@ class PedestrianAgent(ap.Agent):
         best_next_action = np.argmax(q_table_person[next_state_index])
         
         td_target = reward + gamma * q_table_person[next_state_index, best_next_action]
-        td_error = td_target - q_table_person[state_index, action_index]
-        q_table_person[state_index, action_index] += alpha * td_error
+        td_error = td_target - q_table_person[state_index, 0]
+        q_table_person[state_index, 0] += alpha * td_error
 
     def calculate_reward(self, state, did_cross):
         if state.startswith("red_light"):
-            if did_cross:
+            if did_cross and self.crossing:
                 return 10
             return 1
         return -5
@@ -463,7 +492,7 @@ class PedestrianAgent(ap.Agent):
                 car_proximity = "near"
                 break
         
-        if self.my_traffic_light == "red":
+        if traffic_light.is_all_red:
             return "red_light_car_near" if car_proximity == "near" else "red_light_car_far"
         else:
             return "green_light"
