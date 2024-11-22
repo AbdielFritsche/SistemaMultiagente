@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import random
 import heapq
-
+import os
+import json
 # Parámetros de Q-Learning
 alpha = 0.1
 gamma = 0.9
@@ -86,7 +87,7 @@ class CarAgent(ap.Agent):
         self.turn_progress = 0
         self.current_angle = 0
         self.target_angle = 0
-
+        self.step = 0
     def has_completed_route(self):
         grid_size = 10
         if self.direction == 'right' and self.x >= grid_size:
@@ -254,6 +255,37 @@ class CarAgent(ap.Agent):
                 else:
                     self.y -= self.speed
 
+                self.step +=1
+
+        log_entry = ["Carro",self.x , self.y, state,self.id, self.step]
+        print(log_entry)
+
+        # Verificar si el archivo existe; si no, crearlo vacío
+        if not os.path.exists("simulacion.json"):
+            with open("simulacion.json", "w") as file:
+                json.dump({}, file)
+
+        # Cargar el archivo JSON (manejar archivo vacío)
+        try:
+            with open("simulacion.json", "r") as file:
+                content = file.read().strip()
+                movement_logs = json.loads(content) if content else {}
+        except json.JSONDecodeError:
+            movement_logs = {}  # Si hay un error, inicializar como diccionario vacío
+
+        # Actualizar el JSON agregando el nuevo log_entry a la lista del ID correspondiente
+        
+        # Actualizar el JSON agregando el nuevo log_entry
+        car_id = str(self.id)
+        if car_id not in movement_logs:
+            movement_logs[car_id] = []  # Crear una lista si no existe
+        movement_logs[car_id].append(log_entry)  # Agregar el nuevo log_entry
+
+        
+        # Guardar los cambios en el archivo JSON
+        with open("simulacion.json", "w") as file:
+            json.dump(movement_logs, file, indent=4)
+
         self.path.append((self.x, self.y))
         reward = self.calculate_reward(state, action)
 
@@ -287,7 +319,7 @@ class PedestrianAgent(ap.Agent):
         self.safe_distance = 2.0
         self.speed = 0.2
         self.my_traffic_light = None
-
+        self.step = 0
     def get_my_traffic_light(self, traffic_light):
         if 2 <= self.x <= 3:  # Peatón en el cruce oeste
             return traffic_light.get_state_for_direction("LEFT")
@@ -446,6 +478,37 @@ class PedestrianAgent(ap.Agent):
         td_target = reward + gamma * q_table_person[next_state_index, best_next_action]
         td_error = td_target - q_table_person[state_index, action_index]
         q_table_person[state_index, action_index] += alpha * td_error
+
+        self.step +=1
+
+        log_entry = ["Persona",self.x , self.y, state,self.id, self.step]
+        print(log_entry)
+
+        # Verificar si el archivo existe; si no, crearlo vacío
+        if not os.path.exists("simulacion.json"):
+            with open("simulacion.json", "w") as file:
+                json.dump({}, file)
+
+        # Cargar el archivo JSON (manejar archivo vacío)
+        try:
+            with open("simulacion.json", "r") as file:
+                content = file.read().strip()
+                movement_logs = json.loads(content) if content else {}
+        except json.JSONDecodeError:
+            movement_logs = {}  # Si hay un error, inicializar como diccionario vacío
+
+        # Actualizar el JSON agregando el nuevo log_entry a la lista del ID correspondiente
+        
+        # Actualizar el JSON agregando el nuevo log_entry
+        car_id = str(self.id)
+        if car_id not in movement_logs:
+            movement_logs[car_id] = []  # Crear una lista si no existe
+        movement_logs[car_id].append(log_entry)  # Agregar el nuevo log_entry
+
+        
+        # Guardar los cambios en el archivo JSON
+        with open("simulacion.json", "w") as file:
+            json.dump(movement_logs, file, indent=4)
 
     def calculate_reward(self, state, did_cross):
         if state.startswith("red_light"):
