@@ -1,6 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using Newtonsoft.Json;
 
 public class GetSimulationData : MonoBehaviour
 {
@@ -32,7 +34,7 @@ public class GetSimulationData : MonoBehaviour
                 string jsonResponse = webRequest.downloadHandler.text;
                 Debug.Log($"Respuesta del servidor: {jsonResponse}");
 
-                // Si necesitas procesar el JSON, deserialízalo aquí
+                // Procesa la respuesta JSON
                 ProcessJsonResponse(jsonResponse);
             }
         }
@@ -40,22 +42,61 @@ public class GetSimulationData : MonoBehaviour
 
     void ProcessJsonResponse(string json)
     {
-        // Usa esta función para procesar el JSON recibido
-        // Ejemplo simple: conviértelo en un objeto C# si es necesario
-        SimulationData data = JsonUtility.FromJson<SimulationData>(json);
+        // Deserializa el JSON en un diccionario
+        var objetos = JsonConvert.DeserializeObject<Dictionary<string, List<List<object>>>>(json);
 
-        // Imprime la información deserializada
-        Debug.Log($"Simulation Name: {data.name}");
-        Debug.Log($"Agents: {data.agents}");
-        Debug.Log($"Environment: {data.environment}");
+        // Convierte el diccionario en una lista de objetos con sus movimientos
+        List<ObjetoMovil> objetosMoviles = new List<ObjetoMovil>();
+
+        foreach (var objeto in objetos)
+        {
+            int id = int.Parse(objeto.Key);
+            List<Movimiento> movimientos = new List<Movimiento>();
+
+            foreach (var movimientoData in objeto.Value)
+            {
+                Movimiento movimiento = new Movimiento
+                {
+                    Tipo = (string)movimientoData[0],
+                    X = Convert.ToDouble(movimientoData[1]),
+                    Y = Convert.ToDouble(movimientoData[2]),
+                    Estado = (string)movimientoData[3],
+                    Id = Convert.ToInt32(movimientoData[4]),
+                    Paso = Convert.ToInt32(movimientoData[5])
+                };
+                movimientos.Add(movimiento);
+            }
+
+            objetosMoviles.Add(new ObjetoMovil { Id = id, Movimientos = movimientos });
+        }
+
+        // Ejemplo de salida: imprime los movimientos de cada objeto
+        foreach (var objeto in objetosMoviles)
+        {
+            Debug.Log($"Objeto ID: {objeto.Id}");
+            foreach (var movimiento in objeto.Movimientos)
+            {
+                Debug.Log($"  Tipo: {movimiento.Tipo}, X: {movimiento.X}, Y: {movimiento.Y}, Estado: {movimiento.Estado}, Id: {movimiento.Id}, Paso: {movimiento.Paso}");
+            }
+        }
     }
 
-    // Clase para mapear los datos del JSON
+    // Clases para mapear los datos del JSON
     [System.Serializable]
-    public class SimulationData
+    public class Movimiento
     {
-        public string name;
-        public int agents;
-        public string environment;
+        public string Tipo; // "Carro" o "Persona"
+        public double X;     // self.x
+        public double Y;     // self.y
+        public string Estado; // state
+        public int Id;       // self.id
+        public int Paso;     // self.step
+    }
+
+    [System.Serializable]
+    public class ObjetoMovil
+    {
+        public int Id; // ID del objeto
+        public List<Movimiento> Movimientos; // Lista de movimientos del objeto
     }
 }
