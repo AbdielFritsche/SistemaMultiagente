@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
-using Newtonsoft.Json;
+using SimpleJSON;
 
 public class GetSimulationData : MonoBehaviour
 {
@@ -42,41 +42,47 @@ public class GetSimulationData : MonoBehaviour
 
     void ProcessJsonResponse(string json)
     {
-        // Deserializa el JSON en un diccionario
-        var objetos = JsonConvert.DeserializeObject<Dictionary<string, List<List<object>>>>(json);
+        // Analiza el JSON usando SimpleJSON
+        var jsonObject = JSON.Parse(json);
 
-        // Convierte el diccionario en una lista de objetos con sus movimientos
-        List<ObjetoMovil> objetosMoviles = new List<ObjetoMovil>();
-
-        foreach (var objeto in objetos)
+        // Recorre cada agente en el JSON
+        foreach (var agenteKvp in jsonObject)
         {
-            int id = int.Parse(objeto.Key);
+            // La clave del agente, por ejemplo "1690"
+            string agenteId = agenteKvp.Key;
+
+            // Nodo del agente
+            var agenteNode = agenteKvp.Value["Agente"];
+
+            // Obtén los datos básicos del agente
+            string id = agenteNode["ID"];
+            string tipo = agenteNode["Tipo"];
+
+            // Obtén la lista de movimientos
+            var movimientosArray = agenteNode["Movimientos"].AsArray;
+
+            // Lista para almacenar los movimientos
             List<Movimiento> movimientos = new List<Movimiento>();
 
-            foreach (var movimientoData in objeto.Value)
+            // Itera sobre cada movimiento
+            foreach (var movimientoData in movimientosArray)
             {
                 Movimiento movimiento = new Movimiento
                 {
-                    Tipo = (string)movimientoData[0],
-                    X = Convert.ToDouble(movimientoData[1]),
-                    Y = Convert.ToDouble(movimientoData[2]),
-                    Estado = (string)movimientoData[3],
-                    Id = Convert.ToInt32(movimientoData[4]),
-                    Paso = Convert.ToInt32(movimientoData[5])
+                    X = movimientoData.Value["X"],                     // Posición X
+                    Y = movimientoData.Value["Y"],                     // Posición Y
+                    EstadoSemaforo = movimientoData.Value["EstadoSemaforo"],   // Estado del semáforo
+                    Accion = movimientoData.Value["Accion"]                    // Acción
                 };
+
                 movimientos.Add(movimiento);
             }
 
-            objetosMoviles.Add(new ObjetoMovil { Id = id, Movimientos = movimientos });
-        }
-
-        // Ejemplo de salida: imprime los movimientos de cada objeto
-        foreach (var objeto in objetosMoviles)
-        {
-            Debug.Log($"Objeto ID: {objeto.Id}");
-            foreach (var movimiento in objeto.Movimientos)
+            // Imprime los datos del agente
+            Debug.Log($"Agente ID: {id}, Tipo: {tipo}");
+            foreach (var movimiento in movimientos)
             {
-                Debug.Log($"  Tipo: {movimiento.Tipo}, X: {movimiento.X}, Y: {movimiento.Y}, Estado: {movimiento.Estado}, Id: {movimiento.Id}, Paso: {movimiento.Paso}");
+                Debug.Log($"  X: {movimiento.X}, Y: {movimiento.Y}, Semáforo: {movimiento.EstadoSemaforo}, Acción: {movimiento.Accion}");
             }
         }
     }
@@ -85,18 +91,17 @@ public class GetSimulationData : MonoBehaviour
     [System.Serializable]
     public class Movimiento
     {
-        public string Tipo; // "Carro" o "Persona"
-        public double X;     // self.x
-        public double Y;     // self.y
-        public string Estado; // state
-        public int Id;       // self.id
-        public int Paso;     // self.step
+        public string Tipo; // Tipo de agente (e.g., "carro")
+        public int X; // Posición X
+        public int Y; // Posición Y
+        public string EstadoSemaforo; // Estado del semáforo (e.g., "red_light")
+        public string Accion; // Acción tomada (e.g., "continue")
     }
 
     [System.Serializable]
-    public class ObjetoMovil
+    public class Agente
     {
-        public int Id; // ID del objeto
-        public List<Movimiento> Movimientos; // Lista de movimientos del objeto
+        public int Id; // ID del agente
+        public List<Movimiento> Movimientos; // Lista de movimientos del agente
     }
 }
