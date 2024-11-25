@@ -3,38 +3,37 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using SimpleJSON;
+using System;
+using static GetSimulationData;
+
+
+
 
 public class GetSimulationData : MonoBehaviour
 {
-    // URL del endpoint Flask
     private string url = "http://127.0.0.1:5000/simulacion";
+    public AgentManager agentManager;
+    public List<Agente> agentes = new List<Agente>();
 
     void Start()
     {
-        // Inicia la petici√≥n al servidor
         StartCoroutine(GetDataFromServer());
     }
 
     IEnumerator GetDataFromServer()
     {
-        // Realiza una solicitud GET al endpoint
         using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
         {
-            // Env√≠a la solicitud y espera la respuesta
             yield return webRequest.SendWebRequest();
 
             if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
             {
-                // Imprime cualquier error
                 Debug.LogError($"Error: {webRequest.error}");
             }
             else
             {
-                // Procesa la respuesta JSON
                 string jsonResponse = webRequest.downloadHandler.text;
                 Debug.Log($"Respuesta del servidor: {jsonResponse}");
-
-                // Procesa la respuesta JSON
                 ProcessJsonResponse(jsonResponse);
             }
         }
@@ -42,66 +41,84 @@ public class GetSimulationData : MonoBehaviour
 
     void ProcessJsonResponse(string json)
     {
-        // Analiza el JSON usando SimpleJSON
         var jsonObject = JSON.Parse(json);
 
-        // Recorre cada agente en el JSON
-        foreach (var agenteKvp in jsonObject)
+        // Verificar si el JSON est· vacÌo o no contiene la clave "AGENTS"
+        if (jsonObject == null || !jsonObject.HasKey("AGENTS"))
         {
-            // La clave del agente, por ejemplo "1690"
-            string agenteId = agenteKvp.Key;
+            Debug.LogError("El JSON no contiene la clave 'AGENTS' o es inv·lido.");
+            return;
+        }
 
-            // Nodo del agente
-            var agenteNode = agenteKvp.Value["Agente"];
+        var agents = jsonObject["AGENTS"];
 
-            // Obt√©n los datos b√°sicos del agente
-            string id = agenteNode["ID"];
-            string tipo = agenteNode["Tipo"];
+        if (agents == null || agents.Count == 0)
+        {
+            Debug.LogError("No se encontraron agentes en el JSON.");
+            return;
+        }
 
-            // Obt√©n la lista de movimientos
-            var movimientosArray = agenteNode["Movimientos"].AsArray;
+        // Lista de agentes para almacenar los datos procesados
+        List<AgenteData> agentes = new List<AgenteData>();
 
-            // Lista para almacenar los movimientos
-            List<Movimiento> movimientos = new List<Movimiento>();
+        foreach (var kvp in agents)
+        {
+            // Validar y parsear cada agente a la clase AgenteData
+            var agenteJson = kvp.Value;
 
-            // Itera sobre cada movimiento
-            foreach (var movimientoData in movimientosArray)
+            if (agenteJson == null)
             {
-                Movimiento movimiento = new Movimiento
+                Debug.LogWarning("Un agente en el JSON es nulo y ser· ignorado.");
+                continue;
+            }
+
+            // Crear una nueva instancia de AgenteData
+            AgenteData agenteData = new AgenteData
+            {
+                type = agenteJson["type"] != null ? agenteJson["type"] : "Desconocido",
+                movements = new List<Movimiento>()
+            };
+
+            // Validar y parsear los movimientos
+            if (agenteJson.HasKey("movements") && agenteJson["movements"].IsArray)
+            {
+                foreach (var movementJson in agenteJson["movements"].AsArray)
                 {
-                    X = movimientoData.Value["X"],                     // Posici√≥n X
-                    Y = movimientoData.Value["Y"],                     // Posici√≥n Y
-                    EstadoSemaforo = movimientoData.Value["EstadoSemaforo"],   // Estado del sem√°foro
-                    Accion = movimientoData.Value["Accion"]                    // Acci√≥n
-                };
+                    if (movementJson.Value == null)
+                    {
+                        Debug.LogWarning("Un movimiento en el agente es nulo y ser· ignorado.");
+                        continue;
+                    }
 
-                movimientos.Add(movimiento);
+                    Movimiento movimiento = new Movimiento
+                    {
+                        x = movementJson.Value.HasKey("x") ? movementJson.Value["x"].AsFloat : 0f,
+                        y = movementJson.Value.HasKey("y") ? movementJson.Value["y"].AsFloat : 0f,
+                        state = movementJson.Value.HasKey("state") ? movementJson.Value["state"] : "",
+                        step = movementJson.Value.HasKey("step") ? movementJson.Value["step"].AsInt : 0
+                    };
+
+                    agenteData.movements.Add(movimiento);
+                }
             }
-
-            // Imprime los datos del agente
-            Debug.Log($"Agente ID: {id}, Tipo: {tipo}");
-            foreach (var movimiento in movimientos)
+            else
             {
-                Debug.Log($"  X: {movimiento.X}, Y: {movimiento.Y}, Sem√°foro: {movimiento.EstadoSemaforo}, Acci√≥n: {movimiento.Accion}");
+                Debug.LogWarning($"El agente '{agenteJson["type"]}' no tiene movimientos v·lidos.");
             }
+
+            // Agregar el agente procesado a la lista
+            agentes.Add(agenteData);
+        }
+
+        // Iniciar el proceso de spawneo de agentes en la escena
+        if (agentes.Count > 0)
+        {
+            agentManager.StartSpawn(agentes);
+        }
+        else
+        {
+            Debug.LogError("No se pudo procesar ning˙n agente v·lido del JSON.");
         }
     }
-
-    // Clases para mapear los datos del JSON
-    [System.Serializable]
-    public class Movimiento
-    {
-        public string Tipo; // Tipo de agente (e.g., "carro")
-        public int X; // Posici√≥n X
-        public int Y; // Posici√≥n Y
-        public string EstadoSemaforo; // Estado del sem√°foro (e.g., "red_light")
-        public string Accion; // Acci√≥n tomada (e.g., "continue")
-    }
-
-    [System.Serializable]
-    public class Agente
-    {
-        public int Id; // ID del agente
-        public List<Movimiento> Movimientos; // Lista de movimientos del agente
-    }
 }
+

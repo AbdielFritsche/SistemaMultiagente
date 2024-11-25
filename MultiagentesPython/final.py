@@ -290,28 +290,32 @@ class CarAgent(ap.Agent):
 
                 self.step +=1
 
-        log_entry = ["Carro", self.x, self.y, state, self.id, self.step]
-        print(log_entry)
+        # Registro en JSON
+        movement_entry = {
+            "x": self.x,
+            "y": self.y,
+            "state": state,
+            "step": self.step
+        }
 
-        # Handle JSON logging
         if not os.path.exists("simulacion.json"):
             with open("simulacion.json", "w") as file:
-                json.dump({}, file)
+                json.dump({"AGENTS": {}}, file)
 
         try:
             with open("simulacion.json", "r") as file:
                 content = file.read().strip()
-                movement_logs = json.loads(content) if content else {}
+                simulation_data = json.loads(content) if content else {"AGENTS": {}}
         except json.JSONDecodeError:
-            movement_logs = {}
+            simulation_data = {"AGENTS": {}}
 
         car_id = str(self.id)
-        if car_id not in movement_logs or not isinstance(movement_logs[car_id], list):
-            movement_logs[car_id] = []
-        movement_logs[car_id].append(log_entry)
+        if car_id not in simulation_data["AGENTS"]:
+            simulation_data["AGENTS"][car_id] = {"type": "Carro", "movements": []}
+        simulation_data["AGENTS"][car_id]["movements"].append(movement_entry)
 
         with open("simulacion.json", "w") as file:
-            json.dump(movement_logs, file, indent=4)
+            json.dump(simulation_data, file, indent=4)
 
         self.path.append((self.x, self.y))
         reward = self.calculate_reward(state, action)
@@ -608,29 +612,32 @@ class PedestrianAgent(ap.Agent):
 
         self.step += 1
 
-
-        log_entry = ["Persona", self.x, self.y, state, self.id, self.step]
-        print(log_entry)
-
-        # Handle JSON logging
+        # Registro en JSON
+        log_entry = {
+            "x": self.x,
+            "y": self.y,
+            "state": state,
+            "step": self.step
+        }
+            
         if not os.path.exists("simulacion.json"):
-            with open("simulacion.json", "w") as file:
-                json.dump({}, file)
+                with open("simulacion.json", "w") as file:
+                    json.dump({"AGENTS": {}}, file)
 
         try:
             with open("simulacion.json", "r") as file:
                 content = file.read().strip()
-                movement_logs = json.loads(content) if content else {}
+                simulation_data = json.loads(content) if content else {"AGENTS": {}}
         except json.JSONDecodeError:
-            movement_logs = {}
+            simulation_data = {"AGENTS": {}}
 
         pedestrian_id = str(self.id)
-        if pedestrian_id not in movement_logs or not isinstance(movement_logs[pedestrian_id], list):
-            movement_logs[pedestrian_id] = []
-        movement_logs[pedestrian_id].append(log_entry)
+        if pedestrian_id not in simulation_data["AGENTS"]:
+            simulation_data["AGENTS"][pedestrian_id] = {"type": "Persona", "movements": []}
+        simulation_data["AGENTS"][pedestrian_id]["movements"].append(log_entry)
 
         with open("simulacion.json", "w") as file:
-            json.dump(movement_logs, file, indent=4)
+            json.dump(simulation_data, file, indent=4)
 
     def calculate_reward(self, state, did_cross):
         rewards = {

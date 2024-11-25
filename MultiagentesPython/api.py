@@ -4,14 +4,11 @@ import os
 
 app = Flask(__name__)
 
-# Ruta al archivo JSON
-JSON_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', 'simulacion.json')
-
 @app.route('/simulacion', methods=['GET'])
 def get_simulacion_data():
     try:
         # Leer el archivo JSON
-        with open(JSON_FILE_PATH, 'r') as file:
+        with open('simulacion.json', 'r') as file:
             data = json.load(file)
         
         # Retornar el JSON como respuesta
@@ -25,4 +22,3 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 
-##Emir te amo mucho gracias por todo

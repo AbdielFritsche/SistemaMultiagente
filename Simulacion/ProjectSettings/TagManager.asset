@@ -5,6 +5,9 @@ TagManager:
   serializedVersion: 2
   tags:
   - Llanta
+  - ParedInterna
+  - ParedExterna
+  - Coche
   layers:
   - Default
   - TransparentFX
