@@ -8,6 +8,7 @@ TagManager:
   - ParedInterna
   - ParedExterna
   - Coche
+  - Semaforo
   layers:
   - Default
   - TransparentFX
