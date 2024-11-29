@@ -9,6 +9,8 @@ TagManager:
   - ParedExterna
   - Coche
   - Semaforo
+  - Peaton
+  - Obstaculos
   layers:
   - Default
   - TransparentFX
@@ -16,9 +18,9 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - 
+  - Coche
+  - Peaton
+  - Obstaculo
   - 
   - 
   - 

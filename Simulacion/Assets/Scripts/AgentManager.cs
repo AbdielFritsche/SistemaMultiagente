@@ -1,11 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 public class AgentManager : MonoBehaviour
 {
+    /*
     public GameObject carPrefab;        // Prefab para agentes tipo "Carro"
     public GameObject pedestrianPrefab;    // Start is called before the first frame update
     public float scaleFactor = 5f;
@@ -60,6 +62,24 @@ public class AgentManager : MonoBehaviour
     public int maxPedestriansPerArea = 10;    // Máximo de peatones por área
     public float pedestrianAreaCheckRadius = 5f;
     public LayerMask pedestrianLayer;
+
+
+    public Transform topLeftCorner;
+    public Transform topRightCorner;
+    public Transform bottomLeftCorner;
+    public Transform bottomRightCorner;
+
+    public MapManager mapManager;
+    private Dictionary<string, Transform> GetCrossingPoints()
+    {
+        return new Dictionary<string, Transform>
+        {
+            { "TopLeft", topLeftCorner },
+            { "TopRight", topRightCorner },
+            { "BottomLeft", bottomLeftCorner },
+            { "BottomRight", bottomRightCorner }
+        };
+    }
 
     private Dictionary<string, List<GameObject>> pedestriansInAreas = new Dictionary<string, List<GameObject>>()
     {
@@ -403,13 +423,28 @@ public class AgentManager : MonoBehaviour
 
     private IEnumerator SpawnPedestriansProgressively(List<AgenteData> pedestrianAgents)
     {
+        // Genera una lista inicial de puntos de spawn disponibles
+        List<Vector3> availableSpawnPoints = SelectPedestrianSpawnPoints();
+
         foreach (var pedestrianData in pedestrianAgents)
         {
-            Vector3 spawnPoint = GetSpawnPositionForPedestrian(pedestrianData.movements);
+            // Obtén un punto de spawn para este peatón
+            Vector3 spawnPoint = GetSpawnPositionForPedestrian(pedestrianData.movements, availableSpawnPoints);
+
+            // Encuentra el destino (end) para el peatón
+            Transform start = GetTransformForPosition(spawnPoint); // Método para convertir Vector3 a Transform
+            Transform end = GetObjectivePointForPedestrian(spawnPoint);
+
+            if (start == null || end == null)
+            {
+                Debug.LogError($"No se pudieron determinar los puntos de inicio o final para el peatón desde {spawnPoint}");
+                continue;
+            }
 
             int attempts = 0;
             const int maxAttempts = 10;
 
+            // Intenta spawnear al peatón en un área válida
             while (!CheckPedestrianAreaCapacity(spawnPoint) && attempts < maxAttempts)
             {
                 attempts++;
@@ -418,7 +453,8 @@ public class AgentManager : MonoBehaviour
 
             if (attempts < maxAttempts)
             {
-                GameObject pedestrian = SpawnPedestrian(pedestrianData, spawnPoint);
+                // Spawnea al peatón en el punto seleccionado
+                GameObject pedestrian = SpawnPedestrian(pedestrianData, start, end);
                 if (pedestrian != null)
                 {
                     string area = GetPedestrianAreaIdentifier(spawnPoint);
@@ -427,9 +463,30 @@ public class AgentManager : MonoBehaviour
                 }
             }
 
+            // Espera antes de spawnear al siguiente peatón
             yield return new WaitForSeconds(spawnInterval * 0.5f);
         }
     }
+
+    // Método auxiliar para convertir Vector3 a Transform (si es necesario)
+    private Transform GetTransformForPosition(Vector3 position)
+    {
+        // Asume que tienes una lista de posibles puntos de spawn como Transforms
+        Transform[] possiblePoints = { topSideSpawnPedestrians, topSideSpawnPedestrians2, bottomSideSpawnPedestrians, bottomSideSpawnPedestrians2, leftSideSpawnPedestrians, leftSideSpawnPedestrians2, rightSideSpawnPedestrians, rightSideSpawnPedestrians2 };
+
+        foreach (Transform point in possiblePoints)
+        {
+            if (Vector3.Distance(position, point.position) < 0.1f) // Comparación con tolerancia
+            {
+                return point;
+            }
+        }
+
+        Debug.LogWarning($"No se encontró un Transform para la posición {position}");
+        return null;
+    }
+
+
     private IEnumerator TrackPedestrianDestruction(GameObject pedestrian, string area)
     {
         yield return new WaitUntil(() => pedestrian == null || !pedestrian.activeSelf);
@@ -441,7 +498,7 @@ public class AgentManager : MonoBehaviour
         }
     }
 
-    private Vector3 GetSpawnPositionForPedestrian(List<Movimiento> movements)
+    private Vector3 GetSpawnPositionForPedestrian(List<Movimiento> movements, List<Vector3> availableSpawnPoints)
     {
         if (movements == null || movements.Count < 2)
         {
@@ -449,8 +506,17 @@ public class AgentManager : MonoBehaviour
             return Vector3.zero;
         }
 
-        Vector3 direction = CalculateInitialDirection(movements[0], movements[1]);
-        return SelectPedestrianSpawnPoint(direction);
+        if (availableSpawnPoints == null || availableSpawnPoints.Count == 0)
+        {
+            Debug.LogWarning("No hay puntos de spawn disponibles.");
+            return Vector3.zero;
+        }
+
+        // Selecciona el primer punto disponible y lo elimina de la lista
+        Vector3 selectedSpawnPoint = availableSpawnPoints[0];
+        availableSpawnPoints.RemoveAt(0);
+
+        return selectedSpawnPoint;
     }
 
     private Vector3 CalculateInitialDirection(Movimiento first, Movimiento second)
@@ -458,31 +524,47 @@ public class AgentManager : MonoBehaviour
         return new Vector3(second.x - first.x, 0, second.y - first.y).normalized;
     }
 
-    private Vector3 SelectPedestrianSpawnPoint(Vector3 direction)
+    private List<Vector3> SelectPedestrianSpawnPoints()
     {
-        Transform selectedSpawn;
+        // Crea listas para cada lado
+        Transform[] leftSideSpawns = new Transform[] { leftSideSpawnPedestrians, leftSideSpawnPedestrians2 };
+        Transform[] rightSideSpawns = new Transform[] { rightSideSpawnPedestrians, rightSideSpawnPedestrians2 };
+        Transform[] bottomSideSpawns = new Transform[] { bottomSideSpawnPedestrians, bottomSideSpawnPedestrians2 };
+        Transform[] topSideSpawns = new Transform[] { topSideSpawnPedestrians, topSideSpawnPedestrians2 };
 
-        if (Mathf.Abs(direction.x) > Mathf.Abs(direction.z))
+        // Lista para almacenar los puntos seleccionados
+        List<Vector3> selectedSpawnPoints = new List<Vector3>();
+
+        // Asegúrate de que todos los puntos son válidos antes de agregarlos
+        foreach (var spawn in leftSideSpawns)
         {
-            // Movimiento horizontal
-            if (direction.x > 0)
-                selectedSpawn = Random.value > 0.5f ? leftSideSpawnPedestrians : leftSideSpawnPedestrians2;
-            else
-                selectedSpawn = Random.value > 0.5f ? rightSideSpawnPedestrians : rightSideSpawnPedestrians2;
-        }
-        else
-        {
-            // Movimiento vertical
-            if (direction.z > 0)
-                selectedSpawn = Random.value > 0.5f ? bottomSideSpawnPedestrians : bottomSideSpawnPedestrians2;
-            else
-                selectedSpawn = Random.value > 0.5f ? topSideSpawnPedestrians : topSideSpawnPedestrians2;
+            if (spawn != null) selectedSpawnPoints.Add(spawn.position);
         }
 
-        return selectedSpawn.position;
+        foreach (var spawn in rightSideSpawns)
+        {
+            if (spawn != null) selectedSpawnPoints.Add(spawn.position);
+        }
+
+        foreach (var spawn in bottomSideSpawns)
+        {
+            if (spawn != null) selectedSpawnPoints.Add(spawn.position);
+        }
+
+        foreach (var spawn in topSideSpawns)
+        {
+            if (spawn != null) selectedSpawnPoints.Add(spawn.position);
+        }
+
+        if (selectedSpawnPoints.Count == 0)
+        {
+            Debug.LogError("No se encontraron puntos de spawn válidos.");
+        }
+
+        return selectedSpawnPoints;
     }
 
-    private GameObject SpawnPedestrian(AgenteData pedestrianData, Vector3 spawnPoint)
+    private GameObject SpawnPedestrian(AgenteData pedestrianData, Transform start, Transform end)
     {
         if (pedestrianPrefab == null)
         {
@@ -490,8 +572,10 @@ public class AgentManager : MonoBehaviour
             return null;
         }
 
-        GameObject pedestrian = Instantiate(pedestrianPrefab, spawnPoint, Quaternion.identity);
+        // Instanciar el prefab del peatón
+        GameObject pedestrian = Instantiate(pedestrianPrefab, start.position, Quaternion.identity);
 
+        // Asegurarse de que el peatón tenga los componentes necesarios
         Agente agentComponent = pedestrian.GetComponent<Agente>();
         if (agentComponent == null)
         {
@@ -499,16 +583,36 @@ public class AgentManager : MonoBehaviour
         }
 
         PeatonController controller = pedestrian.GetComponent<PeatonController>();
-
         if (controller == null)
         {
             controller = pedestrian.AddComponent<PeatonController>();
         }
 
-        Transform centerPoint = GetRelevantCenterPointForPedestrians(spawnPoint);
-        controller.Initialize(pedestrianData.movements, centerPoint.position);
+        // Obtener los puntos relevantes para el peatón
+        Transform centerPoint = GetRelevantCenterPointForPedestrians(start.position);
+        Transform objectivePoint = GetObjectivePointForPedestrian(start.position);
+        List<Transform> path = mapManager.GetPath(start, end);
 
-        Debug.Log($"Peatón spawneado en {spawnPoint}, dirigiéndose a {centerPoint.name}");
+        if (centerPoint == null || objectivePoint == null)
+        {
+            Debug.LogError($"No se pudo asignar un centro o destino para el peatón spawneado en {start.position}");
+            Destroy(pedestrian);
+            return null;
+        }
+
+        // Pasar los puntos de cruce al controlador del peatón
+        controller.SetCrossingPoints(GetCrossingPoints());
+
+        // Inicializar el controlador del peatón con movimientos, punto central y objetivo final
+        controller.Initialize(
+            pedestrianData.movements,
+            centerPoint.position, // Centro
+            objectivePoint.position // Destino final
+        );
+
+        controller.InitializePath(path);
+
+        Debug.Log($"Peatón spawneado en {start.position}, dirigiéndose al centro: {centerPoint.name} y al destino final: {objectivePoint.name}");
         return pedestrian;
     }
 
@@ -539,6 +643,14 @@ public class AgentManager : MonoBehaviour
     private bool CheckPedestrianAreaCapacity(Vector3 spawnPoint)
     {
         string area = GetPedestrianAreaIdentifier(spawnPoint);
+
+        // Verifica que el área exista en el diccionario
+        if (!pedestriansInAreas.ContainsKey(area))
+        {
+            Debug.LogError($"El área {area} no existe en el diccionario de áreas. Revisa tu configuración.");
+            return false;
+        }
+
         CleanupInactiveEntities(pedestriansInAreas[area]);
 
         if (pedestriansInAreas[area].Count >= maxPedestriansPerArea)
@@ -564,64 +676,33 @@ public class AgentManager : MonoBehaviour
 
     private Transform GetRelevantCenterPointForPedestrians(Vector3 spawnPosition)
     {
-        float tolerance = 0.1f; // Tolerancia para comparaciones de posición
-
-        // Comprobación para spawns superiores
-        if (Vector3.Distance(spawnPosition, topSideSpawnPedestrians.position) < tolerance ||
-            Vector3.Distance(spawnPosition, topSideSpawnPedestrians2.position) < tolerance)
-        {
-            Debug.Log($"Peatón desde spawn superior, usando centerPoint: {centerPointTopPedestrians.name}");
-            return centerPointTopPedestrians;
-        }
-
-        // Comprobación para spawns inferiores
-        if (Vector3.Distance(spawnPosition, bottomSideSpawnPedestrians.position) < tolerance ||
-            Vector3.Distance(spawnPosition, bottomSideSpawnPedestrians2.position) < tolerance)
-        {
-            Debug.Log($"Peatón desde spawn inferior, usando centerPoint: {centerPointBottPedestrians.name}");
-            return centerPointBottPedestrians;
-        }
-
-        // Comprobación para spawns izquierdos
-        if (Vector3.Distance(spawnPosition, leftSideSpawnPedestrians.position) < tolerance ||
-            Vector3.Distance(spawnPosition, leftSideSpawnPedestrians2.position) < tolerance)
-        {
-            Debug.Log($"Peatón desde spawn izquierdo, usando centerPoint: {centerPointLeftPedestrians.name}");
-            return centerPointLeftPedestrians;
-        }
-
-        // Comprobación para spawns derechos
-        if (Vector3.Distance(spawnPosition, rightSideSpawnPedestrians.position) < tolerance ||
-            Vector3.Distance(spawnPosition, rightSideSpawnPedestrians2.position) < tolerance)
-        {
-            Debug.Log($"Peatón desde spawn derecho, usando centerPoint: {centerPointRightPedestrians.name}");
-            return centerPointRightPedestrians;
-        }
-
-        // Alternativa: usar el punto más cercano si no hay coincidencia exacta
-        Transform[] centerPoints = {
-        centerPointTopPedestrians,
-        centerPointBottPedestrians,
-        centerPointLeftPedestrians,
-        centerPointRightPedestrians
+        // Diccionario para mapear puntos de spawn a sus centros correspondientes
+        Dictionary<Transform, Transform> spawnToCenterMap = new Dictionary<Transform, Transform>
+    {
+        { topSideSpawnPedestrians2, centerPointTopPedestrians },
+        { leftSideSpawnPedestrians2, centerPointTopPedestrians },
+        { topSideSpawnPedestrians, centerPointRightPedestrians },
+        { rightSideSpawnPedestrians, centerPointRightPedestrians },
+        { rightSideSpawnPedestrians2, centerPointBottPedestrians },
+        { bottomSideSpawnPedestrians, centerPointBottPedestrians },
+        { bottomSideSpawnPedestrians2, centerPointLeftPedestrians },
+        { leftSideSpawnPedestrians, centerPointLeftPedestrians }
     };
 
-        Transform nearestCenter = centerPoints[0];
-        float nearestDistance = Vector3.Distance(spawnPosition, nearestCenter.position);
-
-        foreach (Transform center in centerPoints)
+        // Busca el punto de spawn en el diccionario
+        foreach (var entry in spawnToCenterMap)
         {
-            float distance = Vector3.Distance(spawnPosition, center.position);
-            if (distance < nearestDistance)
+            if (Vector3.Distance(spawnPosition, entry.Key.position) < 0.1f) // Tolerancia para evitar discrepancias menores
             {
-                nearestCenter = center;
-                nearestDistance = distance;
+                Debug.Log($"Peatón desde {entry.Key.name}, usando centerPoint: {entry.Value.name}");
+                return entry.Value;
             }
         }
 
-        Debug.LogWarning($"No se encontró coincidencia exacta para el punto de spawn {spawnPosition}. " +
-                         $"Usando el centro más cercano: {nearestCenter.name}");
-        return nearestCenter;
+        // Si no se encuentra coincidencia exacta, lanza una advertencia o toma acción alternativa
+        Debug.LogWarning($"No se encontró coincidencia para el punto de spawn {spawnPosition}. " +
+                         "Considera revisar las posiciones de spawn.");
+        return leftSideSpawnPedestrians2;
     }
 
     // Método auxiliar opcional para validación
@@ -629,15 +710,11 @@ public class AgentManager : MonoBehaviour
     {
         // Lista de todos los puntos de spawn y centros que deben estar asignados
         Transform[] requiredPoints = {
-        topSideSpawnPedestrians, topSideSpawnPedestrians2,
-        bottomSideSpawnPedestrians, bottomSideSpawnPedestrians2,
-        leftSideSpawnPedestrians, leftSideSpawnPedestrians2,
-        rightSideSpawnPedestrians, rightSideSpawnPedestrians2,
-        centerPointTopPedestrians,
-        centerPointBottPedestrians,
-        centerPointLeftPedestrians,
-        centerPointRightPedestrians
-    };
+            topSideSpawnPedestrians, topSideSpawnPedestrians2,
+            bottomSideSpawnPedestrians, bottomSideSpawnPedestrians2,
+            leftSideSpawnPedestrians, leftSideSpawnPedestrians2,
+            rightSideSpawnPedestrians, rightSideSpawnPedestrians2,
+        };
 
         foreach (Transform point in requiredPoints)
         {
@@ -649,5 +726,59 @@ public class AgentManager : MonoBehaviour
         }
     }
 
+    private Transform GetObjectivePointForPedestrian(Vector3 spawnPosition)
+    {
+        float tolerance = 0.1f; // Rango de tolerancia para comparar posiciones flotantes
 
+        // Lista de todos los destinos posibles
+        List<Transform> allDestinations = new List<Transform>
+        {
+            topSideSpawnPedestrians,
+            topSideSpawnPedestrians2,
+            bottomSideSpawnPedestrians,
+            bottomSideSpawnPedestrians2,
+            leftSideSpawnPedestrians,
+            leftSideSpawnPedestrians2,
+            rightSideSpawnPedestrians,
+            rightSideSpawnPedestrians2
+        };
+
+        // Determina el tipo del spawn actual y excluye los puntos del mismo tipo
+        if (Vector3.Distance(spawnPosition, topSideSpawnPedestrians.position) < tolerance || Vector3.Distance(spawnPosition, topSideSpawnPedestrians2.position) < tolerance)
+        {
+            // Spawn en la zona superior, excluye top destinos
+            allDestinations.Remove(topSideSpawnPedestrians);
+            allDestinations.Remove(topSideSpawnPedestrians2);
+        }
+        else if (Vector3.Distance(spawnPosition, bottomSideSpawnPedestrians.position) < tolerance || Vector3.Distance(spawnPosition, bottomSideSpawnPedestrians2.position) < tolerance)
+        {
+            // Spawn en la zona inferior, excluye bottom destinos
+            allDestinations.Remove(bottomSideSpawnPedestrians);
+            allDestinations.Remove(bottomSideSpawnPedestrians2);
+        }
+        else if (Vector3.Distance(spawnPosition, leftSideSpawnPedestrians.position) < tolerance || Vector3.Distance(spawnPosition, leftSideSpawnPedestrians2.position) < tolerance)
+        {
+            // Spawn en la zona izquierda, excluye left destinos
+            allDestinations.Remove(leftSideSpawnPedestrians);
+            allDestinations.Remove(leftSideSpawnPedestrians2);
+        }
+        else if (Vector3.Distance(spawnPosition, rightSideSpawnPedestrians.position) < tolerance || Vector3.Distance(spawnPosition, rightSideSpawnPedestrians2.position) < tolerance)
+        {
+            // Spawn en la zona derecha, excluye right destinos
+            allDestinations.Remove(rightSideSpawnPedestrians);
+            allDestinations.Remove(rightSideSpawnPedestrians2);
+        }
+
+        // Selecciona un destino aleatorio de los destinos restantes
+        if (allDestinations.Count > 0)
+        {
+            Transform randomDestination = allDestinations[Random.Range(0, allDestinations.Count)];
+            Debug.Log($"Peatón desde {spawnPosition} tiene como destino: {randomDestination.name}");
+            return randomDestination;
+        }
+
+        // Si no hay destinos válidos, lanza una advertencia y usa un destino predeterminado
+        Debug.LogWarning($"No se pudo determinar un destino válido para spawnPosition: {spawnPosition}. Usando un destino predeterminado.");
+        return topSideSpawn; // Por defecto
+    }*/
 }

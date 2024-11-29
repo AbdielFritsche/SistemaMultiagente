@@ -1145,7 +1145,7 @@ GameObject:
   - component: {fileID: 5127199639302458479}
   - component: {fileID: 934136121464166838}
   - component: {fileID: 7791907137892415036}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Peaton
   m_TagString: Peaton
   m_Icon: {fileID: 0}
@@ -1193,11 +1193,11 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
+  m_UseGravity: 0
   m_IsKinematic: 1
   m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
+  m_Constraints: 36
+  m_CollisionDetection: 1
 --- !u!136 &934136121464166838
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1233,13 +1233,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 086846c721e499f4897b7e876a56ec02, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  movements: []
   movementSpeed: 2
-  minDistance: 1
-  detectionRadius: 2
+  rotationSpeed: 5
+  minDistance: 2
+  detectionRadius: 5
+  obstacleAvoidanceStrength: 2
+  pathNodeRadius: 0.1
   pedestrianLayer:
     serializedVersion: 2
     m_Bits: 0
+  obstacleLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  carLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  movements: []
+  topLeftCorner: {fileID: 0}
+  topRightCorner: {fileID: 0}
+  bottomLeftCorner: {fileID: 0}
+  bottomRightCorner: {fileID: 0}
 --- !u!1 &7938664904889283919
 GameObject:
   m_ObjectHideFlags: 0

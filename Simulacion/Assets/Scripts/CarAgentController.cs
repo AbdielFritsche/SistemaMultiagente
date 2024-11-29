@@ -124,7 +124,7 @@ public class CarAgentController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(rayStart, transform.forward, out hit, minDistance + safetyBuffer, carLayer))
         {
-            if (hit.collider.CompareTag("Coche"))
+            if (hit.collider.CompareTag("Coche") || hit.collider.CompareTag("Peaton"))
             {
                 Debug.Log($"Car {gameObject.name} detected car ahead: {hit.collider.name} at distance {hit.distance}");
                 return true;
@@ -135,7 +135,7 @@ public class CarAgentController : MonoBehaviour
         Vector3 boxExtents = new Vector3(detectionWidth , detectionHeight , minDistance );
         if (Physics.BoxCast(rayStart, boxExtents, transform.forward, out hit, transform.rotation, minDistance + safetyBuffer, carLayer))
         {
-            if (hit.collider.CompareTag("Coche"))
+            if (hit.collider.CompareTag("Coche") || hit.collider.CompareTag("Peaton"))
             {
                 Debug.Log($"Car {gameObject.name} detected potential collision with: {hit.collider.name}");
                 return true;
@@ -159,7 +159,7 @@ public class CarAgentController : MonoBehaviour
                 RaycastHit hit;
                 if (Physics.Raycast(transform.position, transform.forward, out hit, raycastLength))
                 {
-                    if (hit.collider.CompareTag("Coche") || hit.collider.CompareTag("Semaforo"))
+                    if (hit.collider.CompareTag("Coche") || hit.collider.CompareTag("Semaforo") || hit.collider.CompareTag("Peaton") )
                     {
                         // Instead of setting speed to 0, reduce it based on distance
                         float distanceRatio = hit.distance / raycastLength*10;
@@ -242,7 +242,7 @@ public class CarAgentController : MonoBehaviour
 
             if (Physics.Raycast(startPosition, transform.forward, out RaycastHit hit, rayLength))
             {
-                if (hit.collider.CompareTag("Coche"))
+                if (hit.collider.CompareTag("Coche") || hit.collider.CompareTag("Peaton"))
                 {
                     Debug.Log($"Coche {gameObject.name} detectó otro coche adelante: {hit.collider.name}");
                     return true; // Detén el coche
@@ -255,7 +255,7 @@ public class CarAgentController : MonoBehaviour
 
     private void OnCollisionStay(Collision collision)
     {
-        if (collision.gameObject.CompareTag("Coche"))
+        if (collision.gameObject.CompareTag("Coche") || collision.collider.CompareTag("Coche") )
         {
             Vector3 separationForce = (transform.position - collision.transform.position).normalized;
             separationForce.y = 0; // Evitar movimientos verticales
@@ -265,7 +265,7 @@ public class CarAgentController : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Coche"))
+        if (other.CompareTag("Coche") || other.CompareTag("Peaton"))
         {
             isStopped = false;
             Debug.Log($"Coche {gameObject.name} ya no detecta {other.name}");

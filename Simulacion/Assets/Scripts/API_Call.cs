@@ -12,7 +12,7 @@ using static GetSimulationData;
 public class GetSimulationData : MonoBehaviour
 {
     private string url = "http://127.0.0.1:5000/simulacion";
-    public AgentManager agentManager;
+    public AgentController agentController;
     public List<Agente> agentes = new List<Agente>();
 
     void Start()
@@ -113,7 +113,7 @@ public class GetSimulationData : MonoBehaviour
         // Iniciar el proceso de spawneo de agentes en la escena
         if (agentes.Count > 0)
         {
-            agentManager.StartSpawn(agentes);
+            agentController.StartSpawn(agentes);
         }
         else
         {
